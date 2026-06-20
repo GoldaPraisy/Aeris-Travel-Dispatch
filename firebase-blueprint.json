@@ -1,0 +1,56 @@
+{
+  "collections": {
+    "reviews": {
+      "id": "string",
+      "targetId": "string",
+      "targetType": "string",
+      "author": "string",
+      "authorUid": "string",
+      "stars": "number",
+      "text": "string",
+      "photos": "array",
+      "createdAt": "string",
+      "helpfulCount": "number",
+      "flagged": "boolean",
+      "replies": "array"
+    },
+    "bookings": {
+      "id": "string",
+      "uid": "string",
+      "type": "string",
+      "targetId": "string",
+      "title": "string",
+      "detail": "string",
+      "amountPaid": "number",
+      "bookingTime": "string",
+      "createdAt": "string",
+      "status": "string",
+      "cancellationReason": "string",
+      "refundAmount": "number",
+      "refundStatus": "string",
+      "expectedRefundTime": "string",
+      "seatSelection": "string",
+      "roomSelection": "string",
+      "originalPrice": "number"
+    },
+    "price_freezes": {
+      "id": "string",
+      "uid": "string",
+      "type": "string",
+      "targetId": "string",
+      "title": "string",
+      "frozenPrice": "number",
+      "expiresAt": "number",
+      "seatOrRoom": "string"
+    },
+    "notifications": {
+      "id": "string",
+      "uid": "string",
+      "title": "string",
+      "message": "string",
+      "timestamp": "string",
+      "type": "string",
+      "read": "boolean"
+    }
+  }
+}

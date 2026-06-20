@@ -1,0 +1,6 @@
+{
+  "name": "Travel Dispatch & Reservations Terminal",
+  "description": "A comprehensive flight avionics tracking status monitor, dynamic pricing engine, seat & room preference designer, cancellation refund claims ledger, and rating forum.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

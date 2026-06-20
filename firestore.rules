@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper to check if the document belongs to the requesting user
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Global reviews list
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (resource.data.authorUid == request.auth.uid);
+    }
+    
+    // User dynamic data - Bookings, Freezes, Recommendations, Notifications
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+      
+      match /{allSubcollections=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Direct access to generic collections mapped to specific users using fields
+    match /bookings/{bookingId} {
+      allow read, write: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid || request.resource.data.uid == request.auth.uid);
+    }
+
+    match /price_freezes/{freezeId} {
+      allow read, write: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid || request.resource.data.uid == request.auth.uid);
+    }
+
+    match /notifications/{notifId} {
+      allow read, write: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid || request.resource.data.uid == request.auth.uid);
+    }
+  }
+}
