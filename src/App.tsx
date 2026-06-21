@@ -319,21 +319,46 @@ export default function App() {
       await signInWithPopup(auth, googleProvider);
       setIsAuthModalOpen(false);
     } catch (err: any) {
+      console.error("Authenticated SSO failure:", err);
       const isPopupClosed = err?.code === "auth/popup-closed-by-user" || 
                             err?.message?.includes("popup-closed-by-user") ||
                             err?.message?.includes("cancelled-by-user");
       
+      const errorCode = err?.code || "";
+      const errorMessage = err?.message || "";
+
       if (isPopupClosed) {
-        // User closed the authentication popup - this is a standard user action, not a system error
-        setAuthError("Sign-in popup closed. Please keep the window open to finish authentication.");
+        setAuthError("Sign-in popup was closed by the user. Please keep the popup window open until sign-in completes.");
         triggerNotification(
           "Sync Suspended",
           "Continuous cloud sync flow cancelled by passenger.",
           "info"
         );
+      } else if (errorCode === "auth/unauthorized-domain") {
+        setAuthError(
+          `UNAUTHORIZED DOMAIN (${errorCode}): This web URL is not authorized on your Firebase project yet. To fix this:\n\n1. Open your Firebase Console\n2. Go to Authentication -> Settings -> Authorized Domains\n3. Add these two domains:\n\n• ais-dev-7kqi5tvrqrvwwthp4i5jgk-967647800785.europe-west2.run.app\n• ais-pre-7kqi5tvrqrvwwthp4i5jgk-967647800785.europe-west2.run.app`
+        );
+        triggerNotification("Domain Unauthorized", "Please add the app container domain to Firebase Auth Settings.", "alert");
+      } else if (errorCode === "auth/operation-not-allowed") {
+        setAuthError(
+          `GOOGLE SIGN-IN DISABLED (${errorCode}): Google Auth is not enabled. To fix this:\n\n1. Open your Firebase Console\n2. Go to Authentication -> Sign-in Method\n3. Click 'Add new provider'\n4. Select 'Google', enable it, fill in your project support email, and save.`
+        );
+        triggerNotification("Provider Disabled", "Google Auth is disabled in your Firebase console.", "alert");
+      } else if (errorCode === "auth/popup-blocked") {
+        setAuthError(
+          `POPUP BLOCKED (${errorCode}): Your browser blocked the authentication popup. Please allow popups for this site, or open this application in a new separate tab instead.`
+        );
+        triggerNotification("Popup Blocked", "Please allow popups to proceed with Google authentication.", "warning");
+      } else if (errorCode === "auth/network-request-failed" || errorCode.includes("cookie") || errorMessage.includes("cookie")) {
+        setAuthError(
+          `THIRD-PARTY COOKIE OR NETWORK FAULT (${errorCode || "Storage Restricted"}): Third-party cookies may be blocked inside the AI Studio playground iframe.\n\nTo resolve this instantly:\n1. Use the 'Create Account' tab below with email/password instead (fully supported offline & online!)\n2. Or, open this application in a new tab using the 'Open in sub-tab' option.`
+        );
+        triggerNotification("Iframe Sync Restrained", "Browser third-party cookie configuration restriction detected.", "warning");
       } else {
-        console.error("Authenticated SSO failure:", err);
-        setAuthError(err.message || "Google single sign-on rejected. Try again.");
+        setAuthError(
+          `AUTHENTICATION FAULT [${errorCode}]: ${errorMessage}\n\nTroubleshooting suggestions:\n• Ensure Google Sign-In is enabled in the Firebase console.\n• Verify authorized domains are configured.\n• Alternatively, use the 'Create Account' tab below to sync via Email & Password.`
+        );
+        triggerNotification("SSO Link Rejected", err.message || "Google single sign-on rejected.", "alert");
       }
     } finally {
       setAuthLoading(false);
