@@ -6,12 +6,25 @@
   --font-sans: "Inter", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
   
-  --color-canvas: #0F0F0F;
-  --color-panel: #121212;
-  --color-panel-light: #1A1A1A;
+  --color-canvas: #07040C;
+  --color-panel: rgba(14, 11, 23, 0.85);
+  --color-panel-light: rgba(28, 22, 45, 0.95);
   --color-accent: #FF4D00;
-  --color-border-grid: #2A2A2A;
+  --color-border-grid: #2D1B4B;
   --color-typography: #F5F5F0;
+
+  --animate-streak: sweep 4.5s cubic-bezier(0.1, 0.8, 0.15, 1) infinite;
+  --animate-scanline: scan 10s linear infinite;
+
+  @keyframes sweep {
+    0% { transform: translate(-150%, 0) skewX(-20deg); }
+    30% { transform: translate(160%, 0) skewX(-20deg); }
+    100% { transform: translate(160%, 0) skewX(-20deg); }
+  }
+  @keyframes scan {
+    0% { top: 0%; }
+    100% { top: 100%; }
+  }
 }
 
 body {
@@ -19,3 +32,4 @@ body {
   color: var(--color-typography);
   font-family: var(--font-sans);
 }
+

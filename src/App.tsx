@@ -21,6 +21,10 @@ import ClaimsCenter from "./components/ClaimsCenter";
 import PersonalizedRecommendations from "./components/PersonalizedRecommendations";
 import ReviewsForum from "./components/ReviewsForum";
 import Dashboard from "./components/Dashboard";
+import RetroGridBackground from "./components/RetroGridBackground";
+import DroneCursor from "./components/DroneCursor";
+import GlitchText from "./components/GlitchText";
+import AnimatedCounter from "./components/AnimatedCounter";
 
 import {
   Radio,
@@ -39,8 +43,7 @@ import {
   User as UserIcon,
   LogIn,
   ShieldCheck,
-  Lock,
-  ExternalLink
+  Lock
 } from "lucide-react";
 
 import { User, updateProfile } from "firebase/auth";
@@ -117,6 +120,21 @@ export default function App() {
 
   // Active Main Pane Tab
   const [activeTab, setActiveTab] = useState<"dashboard" | "avionics" | "economics" | "preferences" | "claims" | "recommendations" | "forum">("dashboard");
+
+  // Guard navigation so all active features require verified logged-in state
+  const handleTabChange = (tab: "dashboard" | "avionics" | "economics" | "preferences" | "claims" | "recommendations" | "forum") => {
+    if (tab !== "dashboard" && !user) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      triggerNotification(
+        "Authentication Required",
+        `Access to "${tab === "avionics" ? "Terminal Telemetry" : tab === "economics" ? "Economic Engine" : tab === "preferences" ? "Configuration Studio" : tab === "claims" ? "Revocation & Refunds" : tab === "recommendations" ? "AI Affinities" : "Traveler Feedback"}" requires an active secure account sync. Directing to Registry Panel.`,
+        "alert"
+      );
+    } else {
+      setActiveTab(tab);
+    }
+  };
 
   // Push notifications generator helper
   const triggerNotification = (
@@ -385,6 +403,17 @@ export default function App() {
     value: string,
     priceDelta: number
   ) => {
+    if (!user) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      triggerNotification(
+        "Authentication Required",
+        "Configuring flight seats or hotel stays requires a synchronized session.",
+        "warning"
+      );
+      return;
+    }
+
     const updatedDetail =
       itemType === "seat"
         ? `Seat ${value} (${bookings.find(b => b.id === bookingId)?.detail.includes("Deluxe") ? "Deluxe Room" : "Standard Class"})`
@@ -418,6 +447,17 @@ export default function App() {
 
   // Callback 3: Price Freeze mechanism
   const handleAddPriceFreeze = (freeze: Omit<PriceFreeze, "id" | "expiresAt">) => {
+    if (!user) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      triggerNotification(
+        "Authentication Required",
+        "Freezing price rates requires an active synced account. Directing to registry dashboard.",
+        "warning"
+      );
+      return;
+    }
+
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 mins
     const newFreeze: PriceFreeze = {
       ...freeze,
@@ -433,6 +473,17 @@ export default function App() {
 
   // Instantiate Booking directly from structured price lock!
   const handleCreateBookingFromFreeze = async (freeze: PriceFreeze) => {
+    if (!user) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      triggerNotification(
+        "Authentication Required",
+        "Booking at a frozen rate requires an active synced account.",
+        "warning"
+      );
+      return;
+    }
+
     const newBookingId = `bk-${Date.now().toString().slice(-4)}`;
     const newBooking: Booking = {
       id: newBookingId,
@@ -470,6 +521,17 @@ export default function App() {
 
   // Callback 4: Revocation / Cancellation submission
   const handleCancelBooking = async (bookingId: string, reason: string, refundAmount: number, timeline: string) => {
+    if (!user) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      triggerNotification(
+        "Authentication Required",
+        "Active cancellation and refund processing requires an active synced account.",
+        "warning"
+      );
+      return;
+    }
+
     const updatedList = bookings.map((bk) => {
       if (bk.id !== bookingId) return bk;
       return {
@@ -533,6 +595,17 @@ export default function App() {
 
   // Callback 5: Recommendation Feedback Loops
   const handleVoteRecommendation = (id: string, helpful: boolean) => {
+    if (!user) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      triggerNotification(
+        "Authentication Required",
+        "Voting on dynamic recommendations is restricted to verified synced users.",
+        "warning"
+      );
+      return;
+    }
+
     setRecommendations((prev) =>
       prev.map((rec) => {
         if (rec.id !== id) return rec;
@@ -543,6 +616,17 @@ export default function App() {
 
   // Refresh recommendation matches based on the category active signal!
   const handleRefreshRecommendations = (category: string) => {
+    if (!user) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      triggerNotification(
+        "Authentication Required",
+        "Refreshing recommended travel options requires an active account.",
+        "warning"
+      );
+      return;
+    }
+
     if (category === "beaches") {
       setRecommendations([
         {
@@ -653,35 +737,44 @@ export default function App() {
 
   // Callback 6: Add Review
   const handleAddReview = async (newReviewData: Omit<Review, "id" | "createdAt" | "helpfulCount" | "flagged" | "replies">) => {
-    if (user) {
-      try {
-        await addDoc(collection(db, "reviews"), {
-          ...newReviewData,
-          createdAt: new Date().toISOString(),
-          helpfulCount: 0,
-          flagged: false,
-          replies: []
-        });
-        triggerNotification("Review Published", "Your rating was committed to the cloud database registry.", "success");
-      } catch (err) {
-         handleFirestoreError(err, OperationType.CREATE, "reviews");
-      }
-    } else {
-      const nextReview: Review = {
+    if (!user) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      triggerNotification(
+        "Authentication Required",
+        "Submitting traveler feedback to the global database registry requires a synced account.",
+        "warning"
+      );
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "reviews"), {
         ...newReviewData,
-        id: `rv-${Date.now()}`,
         createdAt: new Date().toISOString(),
         helpfulCount: 0,
         flagged: false,
         replies: []
-      };
-      setReviews((prev) => [nextReview, ...prev]);
-      triggerNotification("Review Cached Locally", "Working offline. Sign in to post globally in real-time.", "warning");
+      });
+      triggerNotification("Review Published", "Your rating was committed to the cloud database registry.", "success");
+    } catch (err) {
+       handleFirestoreError(err, OperationType.CREATE, "reviews");
     }
   };
 
   // Add Comment/Reply to Review
   const handleAddReply = async (reviewId: string, replyText: string) => {
+    if (!user) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      triggerNotification(
+        "Authentication Required",
+        "Posting replies directly onto the ledger requires a synced account.",
+        "warning"
+      );
+      return;
+    }
+
     const nextReply: ReviewReply = {
       id: `rp-${Date.now()}`,
       author: user ? user.email?.split("@")[0] || "Authorized Agent" : "Resident Dispatcher",
@@ -796,7 +889,11 @@ export default function App() {
   const mod = getSeasonModifier();
 
   return (
-    <div className="min-h-screen bg-canvas text-typography flex flex-col justify-between" id="app-root">
+    <div className="min-h-screen bg-canvas/30 text-typography flex flex-col justify-between relative" id="app-root">
+      {/* Interactive Arcade Cyber Grid Background */}
+      <RetroGridBackground />
+      <DroneCursor />
+
       {/* Top Ledger Header */}
       <header className="border-b border-border-grid bg-panel z-10 sticky top-0 animate-fade" id="main-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -807,10 +904,10 @@ export default function App() {
             </div>
             <div>
               <span className="font-serif italic font-extrabold text-xl tracking-tight text-typography">
-                Aeris Travel <span className="text-accent italic">Dispatch</span>
+                <GlitchText text="Aeris" className="text-white text-shadow-neo" /> Travel <span className="text-accent italic">Dispatch</span>
               </span>
-              <span className="font-mono text-[9px] block text-gray-500 tracking-widest mt-0.5">
-                SECURE AVIONICS & BOOKINGS RECORD LEDGER
+              <span className="font-mono text-[9px] block text-accent/80 tracking-widest mt-0.5 uppercase">
+                ● SECURE AVIONICS & BOOKINGS RECORD LEDGER
               </span>
             </div>
           </div>
@@ -969,7 +1066,7 @@ export default function App() {
         <div className="border-b border-border-grid flex flex-wrap gap-1 bg-[#121212] p-1.5 animate-fade" id="tactical-navbar">
           <button
             id="tab-btn-dashboard"
-            onClick={() => setActiveTab("dashboard")}
+            onClick={() => handleTabChange("dashboard")}
             className={`py-2 px-4 transition-all text-xs font-mono uppercase tracking-wider cursor-pointer ${
               activeTab === "dashboard"
                 ? "bg-accent text-canvas font-bold shadow-md"
@@ -980,7 +1077,7 @@ export default function App() {
           </button>
           <button
             id="tab-btn-avionics"
-            onClick={() => setActiveTab("avionics")}
+            onClick={() => handleTabChange("avionics")}
             className={`py-2 px-4 transition-all text-xs font-mono uppercase tracking-wider cursor-pointer ${
               activeTab === "avionics"
                 ? "bg-accent text-canvas font-bold shadow-md"
@@ -991,7 +1088,7 @@ export default function App() {
           </button>
           <button
             id="tab-btn-economics"
-            onClick={() => setActiveTab("economics")}
+            onClick={() => handleTabChange("economics")}
             className={`py-2 px-4 transition-all text-xs font-mono uppercase tracking-wider cursor-pointer ${
               activeTab === "economics"
                 ? "bg-accent text-canvas font-bold shadow-md"
@@ -1002,7 +1099,7 @@ export default function App() {
           </button>
           <button
             id="tab-btn-preferences"
-            onClick={() => setActiveTab("preferences")}
+            onClick={() => handleTabChange("preferences")}
             className={`py-2 px-4 transition-all text-xs font-mono uppercase tracking-wider cursor-pointer ${
               activeTab === "preferences"
                 ? "bg-accent text-canvas font-bold shadow-md"
@@ -1013,7 +1110,7 @@ export default function App() {
           </button>
           <button
             id="tab-btn-claims"
-            onClick={() => setActiveTab("claims")}
+            onClick={() => handleTabChange("claims")}
             className={`py-2 px-4 transition-all text-xs font-mono uppercase tracking-wider cursor-pointer ${
               activeTab === "claims"
                 ? "bg-accent text-canvas font-bold shadow-md"
@@ -1024,7 +1121,7 @@ export default function App() {
           </button>
           <button
             id="tab-btn-recommendations"
-            onClick={() => setActiveTab("recommendations")}
+            onClick={() => handleTabChange("recommendations")}
             className={`py-2 px-4 transition-all text-xs font-mono uppercase tracking-wider cursor-pointer ${
               activeTab === "recommendations"
                 ? "bg-accent text-canvas font-bold shadow-md"
@@ -1035,7 +1132,7 @@ export default function App() {
           </button>
           <button
             id="tab-btn-forum"
-            onClick={() => setActiveTab("forum")}
+            onClick={() => handleTabChange("forum")}
             className={`py-2 px-4 transition-all text-xs font-mono uppercase tracking-wider cursor-pointer ${
               activeTab === "forum"
                 ? "bg-accent text-canvas font-bold shadow-md"
@@ -1074,7 +1171,7 @@ export default function App() {
               flightsCount={flights.length}
               averageRating={reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.stars, 0) / reviews.length : 4.93}
               reviewsCount={reviews.length}
-              onNavigateTab={(tab) => setActiveTab(tab)}
+              onNavigateTab={(tab) => handleTabChange(tab)}
               onTriggerLogin={() => {
                 setAuthError("");
                 setIsAuthModalOpen(true);
@@ -1256,26 +1353,6 @@ export default function App() {
                 <span>Synchronize System Ledger</span>
               </h3>
               <p className="text-[11px] text-gray-400 font-sans mt-0.5">Ensure real-time multi-terminal cloud sync for reviews, seats preferences, and refund trackers.</p>
-            </div>
-
-            {/* IFRAME POPUP PROTOCOL HANDLER BREATHER BAR */}
-            <div className="bg-[#181206] border border-[#EAB308]/25 p-3 flex flex-col gap-2">
-              <span className="font-mono text-[9px] text-[#EAB308] uppercase tracking-widest block font-bold flex items-center gap-1.5">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#EAB308] animate-pulse"></span>
-                IFrame Sandboxed Sandbox Protocol
-              </span>
-              <p className="text-[10px] text-gray-300 leading-normal font-sans">
-                Google Single Sign-On requires a direct top-level browser tab. If you see a "Popup Blocked" error inside the AI Studio playground, open the app directly to sync safely:
-              </p>
-              <a
-                href={typeof window !== "undefined" ? window.location.href : "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#EAB308] hover:bg-[#EAB308]/90 text-[#0F0F0F] font-mono text-[9.5px] font-bold uppercase tracking-wider transition-all self-start"
-              >
-                <ExternalLink size={11} />
-                <span>Open Standalone App Tab</span>
-              </a>
             </div>
 
             {/* Google Fast Sync Block */}

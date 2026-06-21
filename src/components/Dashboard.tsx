@@ -26,6 +26,11 @@ import {
 } from "lucide-react";
 import { User } from "firebase/auth";
 
+// Import custom retro-gaming sci-fi UI layers
+import GlitchText from "./GlitchText";
+import AnimatedCounter from "./AnimatedCounter";
+import LightStreakBorder from "./LightStreakBorder";
+
 interface DashboardProps {
   user: User | null;
   hotelsCount: number;
@@ -66,6 +71,15 @@ export default function Dashboard({
   };
 
   const handleAiTry = async () => {
+    if (!user) {
+      triggerNotification(
+        "Authentication Required",
+        "The Aeris AI Companion requires an active synced account. Directing to registry dashboard.",
+        "warning"
+      );
+      onTriggerLogin();
+      return;
+    }
     if (!aiPrompt.trim()) return;
     setIsAiLoading(true);
     setAiOutput("");
@@ -106,42 +120,44 @@ export default function Dashboard({
   return (
     <div className="flex flex-col gap-6 animate-fade" id="dashboard-view-pane">
       
-      {/* Hero Welcome / Header Banner */}
-      <div className="relative border border-border-grid bg-panel p-6 overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
-        {/* Background Accent Grid */}
-        <div className="absolute inset-0 bg-[radial-gradient(#1A1A1A_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
-        
-        <div className="relative z-10 max-w-xl">
-          <span className="font-mono text-[9px] text-accent uppercase tracking-widest block mb-1">Global Workspace Node</span>
-          <h1 className="font-serif italic font-bold text-3xl md:text-4xl text-typography tracking-tight">
-            Aeris Intelligence
-          </h1>
-          <p className="text-xs text-gray-400 font-sans mt-2 leading-relaxed">
-            Welcome to the aeris tactical avionics and dynamic booking portal. We orchestrate live satellite flight coordinates, predictive pricing matrices, and cognitive travelers AI companion models to optimize your pathing.
-          </p>
-        </div>
+      {/* Hero Welcome / Header Banner with Light Streak Sweep & Glitch Title */}
+      <LightStreakBorder color="orange" className="p-6">
+        <div className="relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
+          {/* Background Accent Grid */}
+          <div className="absolute inset-0 bg-[radial-gradient(#1A1A1A_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
+          
+          <div className="relative z-10 max-w-xl">
+            <span className="font-mono text-[9px] text-accent uppercase tracking-widest block mb-1">Global Workspace Node</span>
+            <h1 className="font-serif italic font-bold text-3xl md:text-4xl text-typography tracking-tight">
+              <GlitchText text="Aeris Intelligence" className="text-typography font-serif" />
+            </h1>
+            <p className="text-xs text-gray-400 font-sans mt-2 leading-relaxed">
+              Welcome to the aeris tactical avionics and dynamic booking portal. We orchestrate live satellite flight coordinates, predictive pricing matrices, and cognitive travelers AI companion models to optimize your pathing.
+            </p>
+          </div>
 
-        {/* Dynamic State Overview Button */}
-        <div className="relative z-10 shrink-0">
-          {!user ? (
-            <button
-              onClick={onTriggerLogin}
-              className="px-5 py-2 bg-accent hover:bg-opacity-95 text-canvas font-mono uppercase text-xs font-bold tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg hover:shadow-accent/10"
-            >
-              <Lock size={12} />
-              <span>Initiate Cloud Sync</span>
-            </button>
-          ) : (
-            <div className="flex items-center gap-3 bg-[#161616] border border-accent/30 px-4 py-2">
-              <span className="w-2 h-2 bg-accent rounded-full animate-pulse" />
-              <div className="text-left font-mono">
-                <span className="text-[9px] text-gray-500 block uppercase">Telemetry Status</span>
-                <span className="text-[11px] text-[#F5F5F0] font-bold">LINK_SECURED_ACTIVE</span>
+          {/* Dynamic State Overview Button */}
+          <div className="relative z-10 shrink-0">
+            {!user ? (
+              <button
+                onClick={onTriggerLogin}
+                className="px-5 py-2 bg-gradient-to-r from-accent to-red-600 hover:opacity-95 text-canvas font-mono uppercase text-xs font-bold tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-lg hover:shadow-accent/15"
+              >
+                <Lock size={12} className="animate-bounce" />
+                <span>Initiate Cloud Sync</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 bg-[#110D1B] border border-accent/40 px-4 py-2 shadow-[0_0_10px_rgba(255,77,0,0.1)]">
+                <span className="w-2 h-2 bg-accent rounded-full animate-ping" />
+                <div className="text-left font-mono">
+                  <span className="text-[9px] text-gray-500 block uppercase">Telemetry Status</span>
+                  <span className="text-[11px] text-[#F5F5F0] font-bold tracking-widest">LINK_SECURED_ACTIVE</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      </LightStreakBorder>
 
       {/* Account Ledger Section - Highlighting the active user when logged in */}
       <div className="border border-border-grid bg-[#121212] p-5" id="dashboard-account-ledger-section">
@@ -206,40 +222,40 @@ export default function Dashboard({
         )}
       </div>
 
-      {/* Dynamic Counter Showcase (Flights, Hotels, ratings) */}
+      {/* Dynamic Counter Showcase (Flights, Hotels, ratings) packaged in Light Streak elements */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" id="dashboard-counter-stats">
-        <div className="border border-border-grid bg-panel p-4 flex flex-col gap-1 hover:border-gray-600 transition-all">
-          <span className="font-mono text-[9px] text-accent uppercase tracking-widest block mb-0.5">Avionics Feed</span>
+        <LightStreakBorder color="cyan" className="p-4 flex flex-col gap-1 transition-all duration-300 hover:shadow-[0_0_15px_rgba(6,182,212,0.25)]">
+          <span className="font-mono text-[9px] text-cyan-400 uppercase tracking-widest block mb-0.5">Avionics Feed</span>
           <div className="flex items-baseline gap-2">
             <span className="font-serif italic font-bold text-3xl text-typography" id="dashboard-flights-count">
-              {flightsCount}
+              <AnimatedCounter value={flightsCount} />
             </span>
             <span className="text-xs font-mono text-gray-500">Live Flight Vectors</span>
           </div>
           <p className="text-[10px] text-gray-400 font-sans mt-1">Satellite metrics synchronizing active global corridors.</p>
-        </div>
+        </LightStreakBorder>
 
-        <div className="border border-border-grid bg-panel p-4 flex flex-col gap-1 hover:border-gray-600 transition-all">
-          <span className="font-mono text-[9px] text-accent uppercase tracking-widest block mb-0.5">Premium Stays</span>
+        <LightStreakBorder color="magenta" className="p-4 flex flex-col gap-1 transition-all duration-300 hover:shadow-[0_0_15px_rgba(255,0,127,0.25)]">
+          <span className="font-mono text-[9px] text-[#FF007F] uppercase tracking-widest block mb-0.5">Premium Stays</span>
           <div className="flex items-baseline gap-2">
             <span className="font-serif italic font-bold text-3xl text-typography" id="dashboard-hotels-count">
-              {hotelsCount}
+              <AnimatedCounter value={hotelsCount} />
             </span>
             <span className="text-xs font-mono text-gray-500">Curated Hotels</span>
           </div>
           <p className="text-[10px] text-gray-400 font-sans mt-1">High-fidelity catalog integrations with deluxe room sync.</p>
-        </div>
+        </LightStreakBorder>
 
-        <div className="border border-border-grid bg-panel p-4 flex flex-col gap-1 hover:border-gray-600 transition-all">
+        <LightStreakBorder color="orange" className="p-4 flex flex-col gap-1 transition-all duration-300 hover:shadow-[0_0_15px_rgba(255,77,0,0.25)]">
           <span className="font-mono text-[9px] text-accent uppercase tracking-widest block mb-0.5">Community Weight</span>
           <div className="flex items-baseline gap-2">
             <span className="font-serif italic font-bold text-3xl text-typography" id="dashboard-reviews-score">
-              {averageRating.toFixed(2)}
+              <AnimatedCounter value={averageRating} decimals={2} />
             </span>
             <span className="text-xs font-mono text-gray-500">/ 5.0 Rating</span>
           </div>
           <p className="text-[10px] text-gray-400 font-sans mt-1">Aggregated reviews across {reviewsCount} traveler dispatches.</p>
-        </div>
+        </LightStreakBorder>
       </div>
 
       {/* Quick Access Navigational Buttons Grid */}
