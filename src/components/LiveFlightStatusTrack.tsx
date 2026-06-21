@@ -274,6 +274,262 @@ function SatelliteMapVisualizer({ flight, isSimulating }: SatelliteMapProps) {
   );
 }
 
+// -------------------------------------------------------------
+// TACTICAL SWEEP RADAR DIGITAL SCREEN
+// Renders active sweep vector beams, compass rose angles,
+// altitude readouts and flight route projections.
+// -------------------------------------------------------------
+interface TacticalRadarProps {
+  flight: Flight;
+  isSimulating: boolean;
+}
+
+function TacticalRadarVisualizer({ flight, isSimulating }: TacticalRadarProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [sweepAngle, setSweepAngle] = useState<number>(0);
+  const [dimensions, setDimensions] = useState({ width: 450, height: 260 });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      setDimensions({
+        width: containerRef.current!.clientWidth,
+        height: containerRef.current!.clientHeight || 260
+      });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    let animId: number;
+    const tick = () => {
+      setSweepAngle((prev) => (prev + 0.035) % (Math.PI * 2));
+      animId = requestAnimationFrame(tick);
+    };
+    if (isSimulating) {
+      animId = requestAnimationFrame(tick);
+    }
+    return () => cancelAnimationFrame(animId);
+  }, [isSimulating]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const { width: w, height: h } = dimensions;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+
+    const cx = w / 2;
+    const cy = h / 2;
+    const maxRadius = Math.min(w, h) * 0.42;
+
+    ctx.fillStyle = "#040805";
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.04)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 360; i += 30) {
+      const rad = (i * Math.PI) / 180;
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(rad) * maxRadius * 1.1, cy + Math.sin(rad) * maxRadius * 1.1);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.12)";
+    const ringCount = 3;
+    for (let r = 1; r <= ringCount; r++) {
+      const radius = (maxRadius / ringCount) * r;
+      ctx.lineWidth = r === ringCount ? 1.5 : 0.8;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.font = "8px monospace";
+      ctx.fillStyle = "rgba(16, 185, 129, 0.35)";
+      ctx.fillText(`${r * 40} NM`, cx + 3, cy - radius + 11);
+    }
+
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.25)";
+    ctx.lineWidth = 0.8;
+    for (let deg = 0; deg < 360; deg += 10) {
+      const rad = (deg * Math.PI) / 180;
+      const startDist = maxRadius;
+      const endDist = maxRadius + (deg % 30 === 0 ? 8 : 4);
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(rad) * startDist, cy + Math.sin(rad) * startDist);
+      ctx.lineTo(cx + Math.cos(rad) * endDist, cy + Math.sin(rad) * endDist);
+      ctx.stroke();
+
+      if (deg % 30 === 0) {
+        ctx.font = "bold 7px monospace";
+        ctx.fillStyle = "rgba(16, 185, 129, 0.55)";
+        const tx = cx + Math.cos(rad) * (endDist + 8);
+        const ty = cy + Math.sin(rad) * (endDist + 8);
+        ctx.fillText(`${deg}°`, tx - 6, ty + 2.5);
+      }
+    }
+
+    const sweepLines = 45;
+    for (let i = 0; i < sweepLines; i++) {
+      const angleOffset = -(i * 0.015);
+      const intensity = (1 - i / sweepLines) * 0.16;
+      ctx.fillStyle = `rgba(16, 185, 129, ${intensity})`;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, maxRadius * 1.1, sweepAngle + angleOffset, sweepAngle + angleOffset + 0.016);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = "rgba(52, 211, 153, 0.65)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(sweepAngle) * maxRadius * 1.1, cy + Math.sin(sweepAngle) * maxRadius * 1.1);
+    ctx.stroke();
+
+    const maxEta = 480;
+    const progress = Math.max(0, Math.min(1, (maxEta - flight.etaMinutes) / maxEta));
+    const pathAngle = Math.PI - 0.45;
+    const startOffset = maxRadius * 0.85;
+    const endOffset = -maxRadius * 0.85;
+    const currentOffset = startOffset + progress * (endOffset - startOffset);
+    const flightX = cx + Math.cos(pathAngle) * currentOffset;
+    const flightY = cy + Math.sin(pathAngle) * currentOffset * 0.65;
+
+    const getAngleDiff = (a1: number, a2: number) => {
+      let diff = (a1 - a2) % (Math.PI * 2);
+      if (diff < 0) diff += Math.PI * 2;
+      return diff;
+    };
+
+    const mainBlipAngle = Math.atan2(flightY - cy, flightX - cx);
+    const mainDiff = getAngleDiff(sweepAngle, mainBlipAngle);
+    const mainFade = Math.max(0, 1 - mainDiff / (Math.PI * 1.2));
+
+    if (mainFade > 0) {
+      ctx.fillStyle = `rgba(16, 185, 129, ${mainFade * 0.18})`;
+      ctx.beginPath();
+      ctx.arc(flightX, flightY, 13, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(52, 211, 153, ${mainFade})`;
+      ctx.beginPath();
+      ctx.arc(flightX, flightY, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (let j = 1; j <= 5; j++) {
+        const trailProgress = Math.max(0, progress - j * 0.06);
+        const trailOffset = startOffset + trailProgress * (endOffset - startOffset);
+        const trailX = cx + Math.cos(pathAngle) * trailOffset;
+        const trailY = cy + Math.sin(pathAngle) * trailOffset * 0.65;
+        const trailBlipAngle = Math.atan2(trailY - cy, trailX - cx);
+        const trailDiff = getAngleDiff(sweepAngle, trailBlipAngle);
+        const trailFade = Math.max(0, (1 - trailDiff / (Math.PI * 1.2)) * (1 - j / 6)) * 0.45;
+        
+        ctx.fillStyle = `rgba(16, 185, 129, ${trailFade})`;
+        ctx.beginPath();
+        ctx.arc(trailX, trailY, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.strokeStyle = `rgba(52, 211, 153, ${mainFade * 0.6})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(flightX, flightY);
+      ctx.lineTo(flightX + Math.cos(pathAngle + Math.PI) * 16, flightY + Math.sin(pathAngle + Math.PI) * 16 * 0.65);
+      ctx.stroke();
+
+      ctx.fillStyle = `rgba(255, 255, 255, ${mainFade * 0.95})`;
+      ctx.font = "bold 8px monospace";
+      ctx.fillText(flight.flightNumber, flightX + 8, flightY - 14);
+
+      ctx.fillStyle = `rgba(52, 211, 153, ${mainFade})`;
+      ctx.font = "7px monospace";
+      ctx.fillText(`ALT: ${flight.altitude || "35,000 ft"}`, flightX + 8, flightY - 6);
+      ctx.fillText(`SPD: ${flight.speed || "490 kts"}`, flightX + 8, flightY + 2);
+      ctx.fillText(`DST: ${(Math.max(12, flight.etaMinutes * 1.25)).toFixed(0)} NM`, flightX + 8, flightY + 10);
+    }
+
+    const ambientFlights = [
+      { id: "DLT241", dx: cx - maxRadius * 0.55, dy: cy + maxRadius * 0.35, status: "OK", alt: "28,000 ft", spd: "420 kts" },
+      { id: "UAE088", dx: cx + maxRadius * 0.65, dy: cy - maxRadius * 0.45, status: "OK", alt: "39,000 ft", spd: "505 kts" },
+      { id: "AAL102", dx: cx - maxRadius * 0.25, dy: cy - maxRadius * 0.55, status: "DLY", alt: "12,000 ft", spd: "280 kts" }
+    ];
+
+    ambientFlights.forEach((af) => {
+      const blipAngle = Math.atan2(af.dy - cy, af.dx - cx);
+      const diff = getAngleDiff(sweepAngle, blipAngle);
+      const fade = Math.max(0, 1 - diff / (Math.PI * 1.2));
+
+      if (fade > 0) {
+        ctx.fillStyle = `rgba(16, 185, 129, ${fade * 0.1})`;
+        ctx.beginPath();
+        ctx.arc(af.dx, af.dy, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(16, 185, 129, ${fade * 0.72})`;
+        ctx.beginPath();
+        ctx.arc(af.dx, af.dy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${fade * 0.5})`;
+        ctx.font = "7px monospace";
+        ctx.fillText(af.id, af.dx + 6, af.dy - 6);
+        ctx.fillStyle = `rgba(16, 185, 129, ${fade * 0.65})`;
+        ctx.fillText(`ALT ${af.alt.split(" ")[0]}`, af.dx + 6, af.dy + 2);
+      }
+    });
+
+    ctx.font = "8px monospace";
+    ctx.fillStyle = "rgba(16, 185, 129, 0.45)";
+    ctx.fillText("GRID: TACTICAL ATC AIRSPACE-6", 12, h - 30);
+    ctx.fillText(`FREQUENCY: UHF 324.850 MHz | MODE: C`, 12, h - 18);
+    ctx.fillText(`RADAR SWEPT STATE: ACTIVE (ROT: ${(sweepAngle * 180 / Math.PI).toFixed(0)}°)`, 12, h - 6);
+
+    ctx.fillText("SYSTEM CODE: TRANS-V", w - 120, h - 30);
+    ctx.fillText(`CENTER REF: ${flight.originCode} / ${flight.destinationCode}`, w - 120, h - 18);
+    ctx.fillText("TRACKING SECTOR: REGIONAL ALPHA", w - 120, h - 6);
+
+    if (isSimulating && Math.floor(Date.now() / 1000) % 2 === 0) {
+      ctx.fillStyle = "#10b981";
+      ctx.beginPath();
+      ctx.arc(w - 75, 16, 3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.font = "bold 8px monospace";
+      ctx.fillText("RADAR SWEEP", w - 65, 19);
+    } else {
+      ctx.fillStyle = "rgba(16, 185, 129, 0.5)";
+      ctx.font = "bold 8px monospace";
+      ctx.fillText("RADAR SWEEP", w - 65, 19);
+    }
+
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, 0, w, h);
+  }, [sweepAngle, dimensions, flight, isSimulating]);
+
+  return (
+    <div ref={containerRef} className="relative border border-border-grid bg-[#040805] rounded-none overflow-hidden h-64 w-full flex items-center justify-center">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full block"
+      />
+    </div>
+  );
+}
+
 export default function LiveFlightStatusTrack({
   flights,
   onUpdateFlights,
@@ -282,6 +538,7 @@ export default function LiveFlightStatusTrack({
   const [trackedFlightIds, setTrackedFlightIds] = useState<string[]>(["fl-1", "fl-2"]);
   const [isSimulating, setIsSimulating] = useState<boolean>(true);
   const [selectedFlightId, setSelectedFlightId] = useState<string | null>("fl-1");
+  const [visualizerMode, setVisualizerMode] = useState<"map" | "radar">("radar");
 
   // Simulated real-time updates for tracked flights
   useEffect(() => {
@@ -564,16 +821,50 @@ export default function LiveFlightStatusTrack({
               </div>
             </div>
 
-            {/* LIVE SATELLITE VISUAL MAP SCREEN */}
+            {/* LIVE TELEMETRY DECK VISUALIZER */}
             <div className="flex flex-col gap-1">
-              <span className="font-mono text-[9px] text-accent uppercase tracking-widest block mb-1 flex items-center gap-1">
-                <Globe size={11} className="animate-spin text-accent" />
-                <span>Active Geo-Synchronous Satellite Downlink Tracker</span>
-              </span>
-              <SatelliteMapVisualizer
-                flight={selectedFlight}
-                isSimulating={isSimulating}
-              />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1 gap-2">
+                <span className="font-mono text-[9px] text-accent uppercase tracking-widest flex items-center gap-1.5">
+                  <RadioTower size={12} className="animate-pulse text-accent" />
+                  <span>Aero-Telemetry Spatial Vector Display Deck</span>
+                </span>
+                <div className="flex items-center gap-1 bg-[#161616] border border-border-grid p-0.5 self-start sm:self-auto">
+                  <button
+                    id="radar-visualizer-mode-btn"
+                    onClick={() => setVisualizerMode("radar")}
+                    className={`px-3 py-1 text-[9px] font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                      visualizerMode === "radar"
+                        ? "bg-accent text-canvas font-bold"
+                        : "text-gray-400 hover:text-white hover:bg-neutral-800/50"
+                    }`}
+                  >
+                    Tactical Sweep Radar
+                  </button>
+                  <button
+                    id="map-visualizer-mode-btn"
+                    onClick={() => setVisualizerMode("map")}
+                    className={`px-3 py-1 text-[9px] font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                      visualizerMode === "map"
+                        ? "bg-accent text-canvas font-bold"
+                        : "text-gray-400 hover:text-white hover:bg-neutral-800/50"
+                    }`}
+                  >
+                    Geosync Sat Map
+                  </button>
+                </div>
+              </div>
+
+              {visualizerMode === "radar" ? (
+                <TacticalRadarVisualizer
+                  flight={selectedFlight}
+                  isSimulating={isSimulating}
+                />
+              ) : (
+                <SatelliteMapVisualizer
+                  flight={selectedFlight}
+                  isSimulating={isSimulating}
+                />
+              )}
             </div>
 
             {/* Tactical Grid Screen */}
