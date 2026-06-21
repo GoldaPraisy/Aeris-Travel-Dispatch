@@ -39,7 +39,8 @@ import {
   User as UserIcon,
   LogIn,
   ShieldCheck,
-  Lock
+  Lock,
+  ExternalLink
 } from "lucide-react";
 
 import { User, updateProfile } from "firebase/auth";
@@ -1255,6 +1256,26 @@ export default function App() {
                 <span>Synchronize System Ledger</span>
               </h3>
               <p className="text-[11px] text-gray-400 font-sans mt-0.5">Ensure real-time multi-terminal cloud sync for reviews, seats preferences, and refund trackers.</p>
+            </div>
+
+            {/* IFRAME POPUP PROTOCOL HANDLER BREATHER BAR */}
+            <div className="bg-[#181206] border border-[#EAB308]/25 p-3 flex flex-col gap-2">
+              <span className="font-mono text-[9px] text-[#EAB308] uppercase tracking-widest block font-bold flex items-center gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#EAB308] animate-pulse"></span>
+                IFrame Sandboxed Sandbox Protocol
+              </span>
+              <p className="text-[10px] text-gray-300 leading-normal font-sans">
+                Google Single Sign-On requires a direct top-level browser tab. If you see a "Popup Blocked" error inside the AI Studio playground, open the app directly to sync safely:
+              </p>
+              <a
+                href={typeof window !== "undefined" ? window.location.href : "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#EAB308] hover:bg-[#EAB308]/90 text-[#0F0F0F] font-mono text-[9.5px] font-bold uppercase tracking-wider transition-all self-start"
+              >
+                <ExternalLink size={11} />
+                <span>Open Standalone App Tab</span>
+              </a>
             </div>
 
             {/* Google Fast Sync Block */}
