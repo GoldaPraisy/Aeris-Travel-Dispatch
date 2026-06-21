@@ -61,19 +61,59 @@ export default function PricingEngineHub({
   const currentItem = allItems.find(i => i.id === selectedTargetId) || allItems[0];
   const adjustedPrice = Math.round(currentItem.basePrice * factor);
 
-  // Fictional monthly price fluctuations for price charts
-  const getHistoricalData = (baseVal: number) => {
-    return [
-      { month: "Jan", val: Math.round(baseVal * 0.95) },
-      { month: "Feb", val: Math.round(baseVal * 0.90) },
-      { month: "Mar", val: Math.round(baseVal * 1.05) },
-      { month: "Apr", val: Math.round(baseVal * 1.00) },
-      { month: "May", val: Math.round(baseVal * 1.15) },
-      { month: "Jun", val: Math.round(baseVal * 1.25) }
-    ];
+  const [chartOrientation, setChartOrientation] = useState<"vertical" | "horizontal">("vertical");
+
+  // Fictional monthly price fluctuations for price charts, uniquely seeded by item ID to prevent identical curves
+  const getHistoricalData = (baseVal: number, id: string) => {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    const trendSeed = Math.abs(hash % 4);
+    
+    switch (trendSeed) {
+      case 0: // Peak summer wave
+        return [
+          { month: "Jan", val: Math.round(baseVal * 0.82) },
+          { month: "Feb", val: Math.round(baseVal * 0.85) },
+          { month: "Mar", val: Math.round(baseVal * 0.98) },
+          { month: "Apr", val: Math.round(baseVal * 1.05) },
+          { month: "May", val: Math.round(baseVal * 1.28) },
+          { month: "Jun", val: Math.round(baseVal * 1.45) }
+        ];
+      case 1: // Volatile business route
+        return [
+          { month: "Jan", val: Math.round(baseVal * 1.15) },
+          { month: "Feb", val: Math.round(baseVal * 0.92) },
+          { month: "Mar", val: Math.round(baseVal * 1.22) },
+          { month: "Apr", val: Math.round(baseVal * 0.88) },
+          { month: "May", val: Math.round(baseVal * 1.05) },
+          { month: "Jun", val: Math.round(baseVal * 1.18) }
+        ];
+      case 2: // Promotional descent
+        return [
+          { month: "Jan", val: Math.round(baseVal * 1.30) },
+          { month: "Feb", val: Math.round(baseVal * 1.20) },
+          { month: "Mar", val: Math.round(baseVal * 1.10) },
+          { month: "Apr", val: Math.round(baseVal * 0.95) },
+          { month: "May", val: Math.round(baseVal * 0.88) },
+          { month: "Jun", val: Math.round(baseVal * 0.92) }
+        ];
+      case 3:
+      default: // Double hump curve
+        return [
+          { month: "Jan", val: Math.round(baseVal * 0.90) },
+          { month: "Feb", val: Math.round(baseVal * 1.18) },
+          { month: "Mar", val: Math.round(baseVal * 0.85) },
+          { month: "Apr", val: Math.round(baseVal * 0.95) },
+          { month: "May", val: Math.round(baseVal * 1.25) },
+          { month: "Jun", val: Math.round(baseVal * 1.10) }
+        ];
+    }
   };
 
-  const historyPoints = getHistoricalData(currentItem.basePrice);
+  const historyPoints = getHistoricalData(currentItem.basePrice, currentItem.id);
 
   // SVG dimensions for custom price chart
   const width = 450;
@@ -195,77 +235,136 @@ export default function PricingEngineHub({
 
           {/* Chart Section */}
           <div className="border border-border-grid p-4 bg-[#111111] flex flex-col gap-3">
-            <div className="flex items-center justify-between border-b border-border-grid pb-2">
-              <span className="font-serif italic text-xs text-gray-400">Quarterly Pricing Index (Jan - Jun)</span>
-              <div className="flex items-center gap-1 text-[10px] text-accent font-mono">
-                <TrendingUp size={12} />
-                <span>Forecast: Normal Drift</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border-grid pb-2">
+              <div className="flex items-center gap-2">
+                <span className="font-serif italic text-xs text-gray-400">Quarterly Pricing Index (Jan - Jun)</span>
+                <span className="text-[9px] font-mono bg-neutral-900 border border-zinc-800 text-gray-500 px-1.5 py-0.5 rounded-none uppercase">
+                  Seed-ID: {currentItem.id}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 bg-[#161616] border border-border-grid p-0.5">
+                <button
+                  id="chart-orient-vert-btn"
+                  onClick={() => setChartOrientation("vertical")}
+                  className={`px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                    chartOrientation === "vertical"
+                      ? "bg-accent/80 text-canvas font-bold"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                  title="Price as Y-Axis vertical dimension"
+                >
+                  Vertical Line
+                </button>
+                <button
+                  id="chart-orient-horiz-btn"
+                  onClick={() => setChartOrientation("horizontal")}
+                  className={`px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                    chartOrientation === "horizontal"
+                      ? "bg-accent/80 text-canvas font-bold"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                  title="Price as X-Axis horizontal dimension"
+                >
+                  Horizontal Bar
+                </button>
               </div>
             </div>
 
-            {/* SVG Visual Chart */}
-            <div className="w-full flex justify-center">
-              <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto max-w-lg bg-[#0E0E0E] overflow-visible">
-                {/* Gridlines */}
-                <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#2A2A2A" strokeWidth="1" />
-                <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#2A2A2A" strokeDasharray="3,3" strokeWidth="1" />
-                <line x1={padding} y1={(height) / 2} x2={width - padding} y2={(height) / 2} stroke="#2A2A2A" strokeDasharray="2,2" strokeWidth="0.5" />
+            {chartOrientation === "vertical" ? (
+              /* SVG Visual Chart - Vertical Orientation (Y-axis stands for price scale) */
+              <div className="w-full flex justify-center">
+                <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto max-w-lg bg-[#0E0E0E] overflow-visible">
+                  {/* Gridlines */}
+                  <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#2A2A2A" strokeWidth="1" />
+                  <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#2A2A2A" strokeDasharray="3,3" strokeWidth="1" />
+                  <line x1={padding} y1={(height) / 2} x2={width - padding} y2={(height) / 2} stroke="#2A2A2A" strokeDasharray="2,2" strokeWidth="0.5" />
 
-                {/* Y Axis Grid values */}
-                <text x={padding - 5} y={padding + 4} fill="#666" fontSize="8" fontFamily="var(--font-mono)" textAnchor="end">${Math.round(maxVal)}</text>
-                <text x={padding - 5} y={height - padding + 3} fill="#666" fontSize="8" fontFamily="var(--font-mono)" textAnchor="end">${Math.round(minVal)}</text>
+                  {/* Y Axis Grid values */}
+                  <text x={padding - 5} y={padding + 4} fill="#666" fontSize="8" fontFamily="var(--font-mono)" textAnchor="end">${Math.round(maxVal)}</text>
+                  <text x={padding - 5} y={height - padding + 3} fill="#666" fontSize="8" fontFamily="var(--font-mono)" textAnchor="end">${Math.round(minVal)}</text>
 
-                {/* Grid Point Markers & Connecting Lines */}
-                <polyline
-                  fill="none"
-                  stroke="var(--color-accent)"
-                  strokeWidth="2"
-                  points={pointsString}
-                />
+                  {/* Grid Point Markers & Connecting Lines */}
+                  <polyline
+                    fill="none"
+                    stroke="var(--color-accent)"
+                    strokeWidth="2"
+                    points={pointsString}
+                  />
 
+                  {historyPoints.map((p, idx) => {
+                    const x = padding + (idx * (width - padding * 2)) / (historyPoints.length - 1);
+                    const y = height - padding - ((p.val - minVal) * (height - padding * 2)) / (maxVal - minVal);
+                    const isLast = idx === historyPoints.length - 1;
+
+                    return (
+                      <g key={idx}>
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r="4.5"
+                          fill="#0F0F0F"
+                          stroke={isLast ? "var(--color-accent)" : "#FFF"}
+                          strokeWidth="1.5"
+                        />
+                        {/* Price Label */}
+                        <text
+                          x={x}
+                          y={y - 8}
+                          fill={isLast ? "var(--color-accent)" : "#F5F5F0"}
+                          fontSize="9"
+                          fontFamily="var(--font-mono)"
+                          textAnchor="middle"
+                          fontWeight="600"
+                        >
+                          ${p.val}
+                        </text>
+                        {/* Month Label */}
+                        <text
+                          x={x}
+                          y={height - padding + 12}
+                          fill="#888"
+                          fontSize="8"
+                          fontFamily="var(--font-sans)"
+                          textAnchor="middle"
+                        >
+                          {p.month}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            ) : (
+              /* Horizontal Bar Chart Orientation (X-axis represents price intensity, months stacked vertically) */
+              <div className="w-full flex flex-col gap-2.5 py-1.5 px-1 bg-[#0E0E0E] min-h-[120px] justify-center">
                 {historyPoints.map((p, idx) => {
-                  const x = padding + (idx * (width - padding * 2)) / (historyPoints.length - 1);
-                  const y = height - padding - ((p.val - minVal) * (height - padding * 2)) / (maxVal - minVal);
-                  const isLast = idx === historyPoints.length - 1;
-
+                  const scaleMin = minVal * 0.9;
+                  const scaleMax = maxVal * 1.05;
+                  const ratio = (p.val - scaleMin) / (scaleMax - scaleMin);
+                  const percentage = Math.max(12, Math.min(100, Math.round(ratio * 100)));
+                  
                   return (
-                    <g key={idx}>
-                      <circle
-                        cx={x}
-                        cy={y}
-                        r="4.5"
-                        fill="#0F0F0F"
-                        stroke={isLast ? "var(--color-accent)" : "#FFF"}
-                        strokeWidth="1.5"
-                      />
-                      {/* Price Label */}
-                      <text
-                        x={x}
-                        y={y - 8}
-                        fill={isLast ? "var(--color-accent)" : "#F5F5F0"}
-                        fontSize="9"
-                        fontFamily="var(--font-mono)"
-                        textAnchor="middle"
-                        fontWeight="600"
-                      >
-                        ${p.val}
-                      </text>
-                      {/* Month Label */}
-                      <text
-                        x={x}
-                        y={height - padding + 12}
-                        fill="#888"
-                        fontSize="8"
-                        fontFamily="var(--font-sans)"
-                        textAnchor="middle"
-                      >
+                    <div key={idx} className="flex items-center gap-3 w-full group">
+                      <span className="font-mono text-[10px] text-gray-500 w-8 tracking-wider font-semibold uppercase">
                         {p.month}
-                      </text>
-                    </g>
+                      </span>
+                      <div className="flex-1 bg-[#121212] h-6 relative flex items-center overflow-hidden border border-zinc-900 group-hover:border-accent/30 transition-colors">
+                        <div 
+                          style={{ width: `${percentage}%` }}
+                          className="bg-accent/15 border-r border-accent h-full transition-all duration-500 ease-out"
+                        />
+                        <span className="absolute left-3 font-mono text-[10px] text-typography font-bold flex items-center gap-1.5">
+                          <span>${p.val} USD</span>
+                          <span className="text-[8px] text-gray-500 font-normal">
+                            ({percentage}% factor)
+                          </span>
+                        </span>
+                      </div>
+                    </div>
                   );
                 })}
-              </svg>
-            </div>
+              </div>
+            )}
           </div>
 
           <button
