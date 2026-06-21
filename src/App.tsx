@@ -303,7 +303,9 @@ export default function App() {
     } catch (err: any) {
       console.error(err);
       if (err.code === "auth/operation-not-allowed") {
-        setAuthError("Email signup is disabled. Try standard Google Single-Sign-On sync!");
+        setAuthError(
+          `EMAIL & PASSWORD SIGNUP IS DISABLED (auth/operation-not-allowed). To enable this:\n\n1. Go to your Firebase Console\n2. Navigate to Authentication -> Sign-in Method\n3. Click 'Add new provider'\n4. Select 'Email/Password', toggle the Enable switch, and click Save.\n\nAlternatively, you can synchronize using google auth instead.`
+        );
       } else {
         setAuthError(err.message || "An authentication error occurred. Please verify inputs.");
       }
