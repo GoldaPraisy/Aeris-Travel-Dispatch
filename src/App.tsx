@@ -20,6 +20,7 @@ import PricingEngineHub from "./components/PricingEngineHub";
 import ClaimsCenter from "./components/ClaimsCenter";
 import PersonalizedRecommendations from "./components/PersonalizedRecommendations";
 import ReviewsForum from "./components/ReviewsForum";
+import Dashboard from "./components/Dashboard";
 
 import {
   Radio,
@@ -41,7 +42,7 @@ import {
   Lock
 } from "lucide-react";
 
-import { User } from "firebase/auth";
+import { User, updateProfile } from "firebase/auth";
 
 // Import Firebase Authentication and Firestore real-time syncing mechanisms
 import {
@@ -85,8 +86,10 @@ export default function App() {
   // Auth Modal States
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authTab, setAuthTab] = useState<"login" | "signup">("login");
+  const [authUsername, setAuthUsername] = useState<string>("");
   const [authEmail, setAuthEmail] = useState<string>("");
   const [authPassword, setAuthPassword] = useState<string>("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState<string>("");
   const [authError, setAuthError] = useState<string>("");
   const [authLoading, setAuthLoading] = useState<boolean>(false);
 
@@ -112,7 +115,7 @@ export default function App() {
   const [isAlertMenuOpen, setIsAlertMenuOpen] = useState<boolean>(false);
 
   // Active Main Pane Tab
-  const [activeTab, setActiveTab] = useState<"avionics" | "economics" | "preferences" | "claims" | "recommendations" | "forum">("avionics");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "avionics" | "economics" | "preferences" | "claims" | "recommendations" | "forum">("dashboard");
 
   // Push notifications generator helper
   const triggerNotification = (
@@ -275,11 +278,28 @@ export default function App() {
       if (authTab === "login") {
         await signInWithEmailAndPassword(auth, authEmail, authPassword);
       } else {
-        await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+        if (!authUsername.trim()) {
+          throw new Error("Username is required.");
+        }
+        if (authPassword !== authConfirmPassword) {
+          throw new Error("Passwords do not match.");
+        }
+        const userCredential = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+        if (userCredential.user) {
+          await updateProfile(userCredential.user, {
+            displayName: authUsername.trim()
+          });
+          setUser({
+            ...userCredential.user,
+            displayName: authUsername.trim()
+          } as User);
+        }
       }
       setIsAuthModalOpen(false);
       setAuthEmail("");
       setAuthPassword("");
+      setAuthUsername("");
+      setAuthConfirmPassword("");
     } catch (err: any) {
       console.error(err);
       if (err.code === "auth/operation-not-allowed") {
@@ -324,6 +344,7 @@ export default function App() {
     try {
       await signOut(auth);
       setBookings(INITIAL_BOOKINGS);
+      setActiveTab("dashboard");
     } catch (err) {
       console.error("Sign out failure:", err);
     }
@@ -919,6 +940,17 @@ export default function App() {
         {/* Tactical Ledger Navigation Bar */}
         <div className="border-b border-border-grid flex flex-wrap gap-1 bg-[#121212] p-1.5 animate-fade" id="tactical-navbar">
           <button
+            id="tab-btn-dashboard"
+            onClick={() => setActiveTab("dashboard")}
+            className={`py-2 px-4 transition-all text-xs font-mono uppercase tracking-wider cursor-pointer ${
+              activeTab === "dashboard"
+                ? "bg-accent text-canvas font-bold shadow-md"
+                : "text-gray-400 hover:text-white hover:bg-[#1C1C1C]"
+            }`}
+          >
+            Ledger Dashboard
+          </button>
+          <button
             id="tab-btn-avionics"
             onClick={() => setActiveTab("avionics")}
             className={`py-2 px-4 transition-all text-xs font-mono uppercase tracking-wider cursor-pointer ${
@@ -1007,6 +1039,22 @@ export default function App() {
 
         {/* App Workspace Panel Rendering */}
         <div id="subcomponent-workspace" className="transition-all duration-300">
+          {activeTab === "dashboard" && (
+            <Dashboard
+              user={user}
+              hotelsCount={hotels.length}
+              flightsCount={flights.length}
+              averageRating={reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.stars, 0) / reviews.length : 4.93}
+              reviewsCount={reviews.length}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onTriggerLogin={() => {
+                setAuthError("");
+                setIsAuthModalOpen(true);
+              }}
+              triggerNotification={triggerNotification}
+            />
+          )}
+
           {activeTab === "avionics" && (
             <LiveFlightStatusTrack
               flights={flights}
@@ -1049,6 +1097,7 @@ export default function App() {
 
           {activeTab === "recommendations" && (
             <PersonalizedRecommendations
+              user={user}
               recommendations={recommendations}
               onVoteRecommendation={handleVoteRecommendation}
               onRefreshRecommendations={handleRefreshRecommendations}
@@ -1219,8 +1268,22 @@ export default function App() {
 
             {/* Interactive Forms */}
             <form onSubmit={handleEmailAuthSubmit} className="flex flex-col gap-4">
+              {authTab === "signup" && (
+                <div className="flex flex-col gap-1.5 animate-fade" id="register-field-username">
+                  <label className="font-mono text-[10px] text-gray-500 uppercase">Username / Call Sign</label>
+                  <input
+                    type="text"
+                    required
+                    value={authUsername}
+                    onChange={(e) => setAuthUsername(e.target.value)}
+                    placeholder="voyager_alpha"
+                    className="bg-panel font-sans text-xs border border-border-grid text-typography px-3.5 py-2.5 focus:border-accent focus:outline-none w-full"
+                  />
+                </div>
+              )}
+
               <div className="flex flex-col gap-1.5">
-                <label className="font-mono text-[10px] text-gray-500 uppercase">Registered Email</label>
+                <label className="font-mono text-[10px] text-gray-500 uppercase">Registered Email ID</label>
                 <input
                   type="email"
                   required
@@ -1242,6 +1305,20 @@ export default function App() {
                   className="bg-panel font-sans text-xs border border-border-grid text-typography px-3.5 py-2.5 focus:border-accent focus:outline-none w-full"
                 />
               </div>
+
+              {authTab === "signup" && (
+                <div className="flex flex-col gap-1.5 animate-fade" id="register-field-confirm-password">
+                  <label className="font-mono text-[10px] text-gray-500 uppercase">Confirm System Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={authConfirmPassword}
+                    onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="bg-panel font-sans text-xs border border-border-grid text-typography px-3.5 py-2.5 focus:border-accent focus:outline-none w-full"
+                  />
+                </div>
+              )}
 
               {authError && (
                 <div className="p-3 bg-red-950/20 border-l border-red-500 text-red-400 font-mono text-[11px] leading-relaxed">

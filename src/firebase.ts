@@ -15,18 +15,18 @@ import {
   User
 } from "firebase/auth";
 import { 
-  getFirestore, 
+  initializeFirestore, 
   collection, 
   doc, 
-  setDoc, 
+  setDoc as firebaseSetDoc, 
   getDoc, 
-  addDoc, 
+  addDoc as firebaseAddDoc, 
   getDocs, 
   query, 
   where, 
   orderBy, 
   onSnapshot,
-  updateDoc,
+  updateDoc as firebaseUpdateDoc,
   deleteDoc,
   Timestamp
 } from "firebase/firestore";
@@ -52,8 +52,10 @@ const app = initializeApp({
   appId: firebaseConfig.appId
 });
 
-// Configure Firestore with custom databaseId
-const db = getFirestore(app, "ai-studio-345a1e78-dc13-4023-807b-bada121fd10f");
+// Configure Firestore with custom databaseId and ignore undefined properties
+const db = initializeFirestore(app, {
+  ignoreUndefinedProperties: true
+}, "ai-studio-345a1e78-dc13-4023-807b-bada121fd10f");
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
@@ -104,6 +106,36 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+// Helper to recursively strip out undefined values so standard setDoc/updateDoc never fails
+function cleanUndefined(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanUndefined(item));
+  }
+  if (typeof obj === "object" && !(obj instanceof Timestamp) && !(obj instanceof Date)) {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj)) {
+      if (obj[key] !== undefined) {
+        cleaned[key] = cleanUndefined(obj[key]);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
+export const setDoc = (reference: any, data: any, options?: any) => {
+  return firebaseSetDoc(reference, cleanUndefined(data), options);
+};
+
+export const addDoc = (reference: any, data: any) => {
+  return firebaseAddDoc(reference, cleanUndefined(data));
+};
+
+export const updateDoc = (reference: any, data: any) => {
+  return firebaseUpdateDoc(reference, cleanUndefined(data));
+};
+
 export { 
   app, 
   db, 
@@ -116,15 +148,12 @@ export {
   onAuthStateChanged,
   collection,
   doc,
-  setDoc,
   getDoc,
-  addDoc,
   getDocs,
   query,
   where,
   orderBy,
   onSnapshot,
-  updateDoc,
   deleteDoc,
   Timestamp
 };

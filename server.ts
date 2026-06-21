@@ -6,9 +6,51 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
 
 const app = express();
 const PORT = 3000;
+
+app.use(express.json());
+
+// Initialize GoogleGenAI with the runtime GEMINI_API_KEY and the user's provided fallback key
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY || "AIzaSyAidxCAYewKIl_zj-CelZlUtbPQ728MZUw",
+  httpOptions: {
+    headers: {
+      "User-Agent": "aistudio-build",
+    },
+  },
+});
+
+// Chatbot endpoint proxy for real-time travel affinity optimization
+app.post("/api/recommendations/chat", async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Invalid messages payload. Expected an array." });
+    }
+
+    // Format messages for the @google/genai contents format
+    const contents = messages.map((msg: any) => ({
+      role: msg.role === "user" ? "user" : "model",
+      parts: [{ text: msg.text || "" }],
+    }));
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: contents,
+      config: {
+        systemInstruction: "You are the aeris Travel AI Agent companion. You operate as a smart, professional personal affinity assistant. You help travelers curate their itineraries, choose standard class vs deluxe flights, suggest hotel stays, and understand their personalized travel recommendations. Be positive, eloquent, concise, and professional. Output clean, nicely structured Markdown.",
+      },
+    });
+
+    res.json({ text: response.text });
+  } catch (err: any) {
+    console.error("Gemini API handler failure:", err);
+    res.status(500).json({ error: err.message || "An error occurred in generating content." });
+  }
+});
 
 // Simple Node-level routing cache for OpenSky requests to prevent 429 blocks
 let cachedFlights: any[] = [];
