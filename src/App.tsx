@@ -95,6 +95,7 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState<string>("");
   const [authConfirmPassword, setAuthConfirmPassword] = useState<string>("");
   const [authError, setAuthError] = useState<string>("");
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(false);
 
   // Notifications/Toasts System State
@@ -206,6 +207,14 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Cleanup auth errors when closing modal
+  useEffect(() => {
+    if (!isAuthModalOpen) {
+      setAuthError("");
+      setUnauthorizedDomain(null);
+    }
+  }, [isAuthModalOpen]);
 
   // 1. Real-time Reviews Firestore Syncer (Global reviews feed)
   useEffect(() => {
@@ -341,7 +350,10 @@ If you previously signed up or authenticated using Google Sign-In, you must clic
         );
       } else if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
         setAuthError(
-          `AUTHENTICATION FAILURE: Invalid credentials provided. Please double-check your system password or use the standard Google Sync button.`
+          `AUTHENTICATION FAILURE: Invalid credentials provided.
+
+• If you have not registered yet, you must click the "Create Account" tab above first.
+• Otherwise, please double-check your password or use the standard Google Sync button.`
         );
       } else if (code === "auth/user-not-found") {
         setAuthError(
@@ -357,6 +369,7 @@ If you previously signed up or authenticated using Google Sign-In, you must clic
 
   const handleGoogleAuth = async () => {
     setAuthError("");
+    setUnauthorizedDomain(null);
     setAuthLoading(true);
     try {
       await signInWithPopup(auth, googleProvider);
@@ -371,15 +384,21 @@ If you previously signed up or authenticated using Google Sign-In, you must clic
       const errorMessage = err?.message || "";
 
       if (isPopupClosed) {
-        setAuthError("Sign-in popup was closed by the user. Please keep the popup window open until sign-in completes.");
+        setAuthError(
+          `SIGN-IN CANCELLED or POPUP CLOSED: The Google authentication window was closed before completing.
+
+• Please make sure to keep the Google login window open until the sync state process is finished.
+• If you are running inside a restricted iframe play session, use the "Create Account" tab above with email/password instead (fully supported!) or the "Bypass & Run as Sandbox Traveler" button.`
+        );
         triggerNotification(
           "Sync Suspended",
           "Continuous cloud sync flow cancelled by passenger.",
           "info"
         );
       } else if (errorCode === "auth/unauthorized-domain") {
+        setUnauthorizedDomain(window.location.hostname);
         setAuthError(
-          `UNAUTHORIZED DOMAIN (${errorCode}): This web URL is not authorized on your Firebase project yet. To fix this:\n\n1. Open your Firebase Console\n2. Go to Authentication -> Settings -> Authorized Domains\n3. Add these two domains:\n\n• ais-dev-7kqi5tvrqrvwwthp4i5jgk-967647800785.europe-west2.run.app\n• ais-pre-7kqi5tvrqrvwwthp4i5jgk-967647800785.europe-west2.run.app`
+          `UNAUTHORIZED DOMAIN (${errorCode}): Google SSO redirect rejected. The current web hosting URL is not authorized on your Firebase project.`
         );
         triggerNotification("Domain Unauthorized", "Please add the app container domain to Firebase Auth Settings.", "alert");
       } else if (errorCode === "auth/operation-not-allowed") {
@@ -1512,24 +1531,117 @@ If you previously signed up or authenticated using Google Sign-In, you must clic
               )}
 
               {authError && (
-                <div className="flex flex-col gap-2.5">
+                <div className="flex flex-col gap-3">
                   <div className="p-3 bg-red-950/20 border-l border-red-500 text-red-500 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
                     {authError}
                   </div>
                   
-                  <div className="border border-amber-500/30 bg-amber-500/5 p-3 flex flex-col gap-1.5">
-                    <span className="font-mono text-[9px] text-amber-500 font-bold uppercase tracking-widest block">Local Simulation Tunnel</span>
-                    <p className="text-[11px] text-gray-400 leading-normal font-sans">
-                      If the Email/Password sign-in provider is disabled in your Firebase console, click below to instantly synchronize an offline-sandbox account.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleActivateSandboxBypass}
-                      className="w-full py-1.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-mono text-[10px] uppercase font-bold tracking-widest transition-all cursor-pointer mt-1"
-                    >
-                      Bypass & Run as Sandbox Traveler
-                    </button>
-                  </div>
+                  {unauthorizedDomain ? (
+                    <div className="border border-cyan-500/30 bg-cyan-500/5 p-4 flex flex-col gap-2.5 animate-fade">
+                      <div className="flex items-center gap-1.5 border-b border-cyan-500/20 pb-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                        <span className="font-mono text-[9px] text-cyan-400 font-bold uppercase tracking-widest block">Authorization Required</span>
+                      </div>
+                      
+                      <p className="text-[11px] text-gray-400 leading-normal font-sans">
+                        Firebase requires OAuth redirect domains to be explicitly registered. Copy this domain and add it in your Firebase console under Authentication Settings:
+                      </p>
+
+                      <div className="flex flex-col gap-2 font-mono text-[10px] mt-1">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[9px] text-gray-500 uppercase">
+                            {unauthorizedDomain.includes("vercel.app") ? "Vercel Deployment Host" : "Development Terminal Host"}
+                          </span>
+                          <div className="flex items-center gap-2 bg-panel px-2 py-1.5 border border-border-grid justify-between">
+                            <span className="select-all text-gray-200 truncate">{unauthorizedDomain}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(unauthorizedDomain);
+                                triggerNotification("Copied Hostname", "Domain hostname copied to dashboard memory feed.", "success");
+                              }}
+                              className="text-cyan-400 hover:text-cyan-300 text-[9px] uppercase font-bold cursor-pointer hover:underline"
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+
+                        {unauthorizedDomain.includes("ais-dev-") && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] text-gray-500 uppercase">Shared Preview Host</span>
+                            <div className="flex items-center gap-2 bg-panel px-2 py-1.5 border border-border-grid justify-between">
+                              <span className="select-all text-gray-200 truncate">{unauthorizedDomain.replace("ais-dev-", "ais-pre-")}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const peer = unauthorizedDomain.replace("ais-dev-", "ais-pre-");
+                                  navigator.clipboard.writeText(peer);
+                                  triggerNotification("Copied Hostname", "Shared preview domain copied to dashboard memory feed.", "success");
+                                }}
+                                className="text-cyan-400 hover:text-cyan-300 text-[9px] uppercase font-bold cursor-pointer hover:underline"
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {unauthorizedDomain.includes("ais-pre-") && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] text-gray-500 uppercase">Shared Preview Host</span>
+                            <div className="flex items-center gap-2 bg-panel px-2 py-1.5 border border-border-grid justify-between">
+                              <span className="select-all text-gray-200 truncate">{unauthorizedDomain.replace("ais-pre-", "ais-dev-")}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const peer = unauthorizedDomain.replace("ais-pre-", "ais-dev-");
+                                  navigator.clipboard.writeText(peer);
+                                  triggerNotification("Copied Hostname", "Development preview domain copied to dashboard memory feed.", "success");
+                                }}
+                                className="text-cyan-400 hover:text-cyan-300 text-[9px] uppercase font-bold cursor-pointer hover:underline"
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col gap-2 mt-2 pt-2.5 border-t border-border-grid/50">
+                        <a
+                          href="https://console.firebase.google.com/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-mono text-[9px] text-center uppercase font-bold tracking-widest transition-all"
+                        >
+                          Open Firebase Console ↗
+                        </a>
+                        
+                        <button
+                          type="button"
+                          onClick={handleActivateSandboxBypass}
+                          className="w-full py-1.5 border border-amber-500/45 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 hover:text-amber-400 font-mono text-[9px] uppercase font-bold tracking-widest transition-all cursor-pointer mt-1"
+                        >
+                          Instant Local Sandbox Bypass
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-amber-500/30 bg-amber-500/5 p-3 flex flex-col gap-1.5">
+                      <span className="font-mono text-[9px] text-amber-500 font-bold uppercase tracking-widest block">Local Simulation Tunnel</span>
+                      <p className="text-[11px] text-gray-400 leading-normal font-sans">
+                        If the Email/Password sign-in provider is disabled in your Firebase console, click below to instantly synchronize an offline-sandbox account.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleActivateSandboxBypass}
+                        className="w-full py-1.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-mono text-[10px] uppercase font-bold tracking-widest transition-all cursor-pointer mt-1"
+                      >
+                        Bypass & Run as Sandbox Traveler
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
