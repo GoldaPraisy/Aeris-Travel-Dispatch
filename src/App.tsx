@@ -321,12 +321,34 @@ export default function App() {
       setAuthConfirmPassword("");
     } catch (err: any) {
       console.error(err);
-      if (err.code === "auth/operation-not-allowed") {
+      const code = err.code || "";
+      if (code === "auth/operation-not-allowed") {
         setAuthError(
-          `EMAIL & PASSWORD SIGNUP IS DISABLED (auth/operation-not-allowed). To enable this:\n\n1. Go to your Firebase Console\n2. Navigate to Authentication -> Sign-in Method\n3. Click 'Add new provider'\n4. Select 'Email/Password', toggle the Enable switch, and click Save.\n\nAlternatively, you can synchronize using google auth instead.`
+          `EMAIL & PASSWORD SIGNUP IS DISABLED (auth/operation-not-allowed). To enable this:
+
+1. Go to your Firebase Console (https://console.firebase.google.com/)
+2. Navigate to Build -> Authentication -> Sign-in method tab
+3. Click "Add new provider" (or edit template providers)
+4. Select "Email/Password", toggle the Enable switch, and click Save.
+
+Alternatively, you can synchronize using Google Auth above.`
+        );
+      } else if (code === "auth/email-already-in-use" || code === "auth/account-exists-with-different-credential") {
+        setAuthError(
+          `CONFLICT DETECTED: This email address is already associated with an existing user account in this system.
+
+If you previously signed up or authenticated using Google Sign-In, you must click the "Sign In with Google" button above. Your account cannot be accessed using a manual password unless linked.`
+        );
+      } else if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
+        setAuthError(
+          `AUTHENTICATION FAILURE: Invalid credentials provided. Please double-check your system password or use the standard Google Sync button.`
+        );
+      } else if (code === "auth/user-not-found") {
+        setAuthError(
+          `ACCOUNT NOT DETECTED: No credentials matching this email address were found in the database. Please select "Create Account" first to register.`
         );
       } else {
-        setAuthError(err.message || "An authentication error occurred. Please verify inputs.");
+        setAuthError(`SECURITY PROTOCOL NOTICE: ${err.message || "Credential authentication failed."}`);
       }
     } finally {
       setAuthLoading(false);
@@ -386,6 +408,34 @@ export default function App() {
     }
   };
 
+  const handleActivateSandboxBypass = () => {
+    setAuthLoading(true);
+    setAuthError("");
+    
+    setTimeout(() => {
+      // Simulate authenticating as an executive pilot sandbox profile!
+      const targetEmail = authEmail.trim() || "voyager.delta@aeris-sandbox.io";
+      const targetName = authUsername.trim() || targetEmail.split("@")[0] || "Voyager Alpha";
+      const mockUserObj = {
+        uid: "sandbox-crew-" + targetEmail.replace(/[^a-zA-Z0-9]/g, ""),
+        email: targetEmail,
+        displayName: targetName,
+        emailVerified: true,
+        isAnonymous: false,
+      } as any;
+      
+      setUser(mockUserObj);
+      setIsAuthModalOpen(false);
+      setAuthLoading(false);
+      
+      triggerNotification(
+        "Sandbox Crew Sync Active",
+        `Localized sandbox session loaded for ${targetEmail}. Persistence delegated to index storage.`,
+        "success"
+      );
+    }, 700);
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -433,14 +483,18 @@ export default function App() {
     setBookings(updatedList);
 
     if (user) {
-      try {
-        const targetBooking = updatedList.find(b => b.id === bookingId);
-        if (targetBooking) {
-          const bookingRef = doc(db, "users", user.uid, "bookings", bookingId);
-          await setDoc(bookingRef, targetBooking);
+      if (!auth.currentUser) {
+        localStorage.setItem(`aeris_sandbox_bookings_${user.uid}`, JSON.stringify(updatedList));
+      } else {
+        try {
+          const targetBooking = updatedList.find(b => b.id === bookingId);
+          if (targetBooking) {
+            const bookingRef = doc(db, "users", user.uid, "bookings", bookingId);
+            await setDoc(bookingRef, targetBooking);
+          }
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/bookings/${bookingId}`);
         }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/bookings/${bookingId}`);
       }
     }
   };
@@ -504,11 +558,15 @@ export default function App() {
     setPriceFreezes((prev) => prev.filter((f) => f.id !== freeze.id));
 
     if (user) {
-      try {
-        const bookingRef = doc(db, "users", user.uid, "bookings", newBookingId);
-        await setDoc(bookingRef, newBooking);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/bookings/${newBookingId}`);
+      if (!auth.currentUser) {
+        localStorage.setItem(`aeris_sandbox_bookings_${user.uid}`, JSON.stringify(nextBookings));
+      } else {
+        try {
+          const bookingRef = doc(db, "users", user.uid, "bookings", newBookingId);
+          await setDoc(bookingRef, newBooking);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/bookings/${newBookingId}`);
+        }
       }
     }
 
@@ -548,14 +606,18 @@ export default function App() {
     setBookings(updatedList);
 
     if (user) {
-      try {
-        const targetBooking = updatedList.find(b => b.id === bookingId);
-        if (targetBooking) {
-          const bookingRef = doc(db, "users", user.uid, "bookings", bookingId);
-          await setDoc(bookingRef, targetBooking);
+      if (!auth.currentUser) {
+        localStorage.setItem(`aeris_sandbox_bookings_${user.uid}`, JSON.stringify(updatedList));
+      } else {
+        try {
+          const targetBooking = updatedList.find(b => b.id === bookingId);
+          if (targetBooking) {
+            const bookingRef = doc(db, "users", user.uid, "bookings", bookingId);
+            await setDoc(bookingRef, targetBooking);
+          }
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/bookings/${bookingId}`);
         }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/bookings/${bookingId}`);
       }
     }
 
@@ -574,14 +636,18 @@ export default function App() {
       setBookings(processedList);
 
       if (user) {
-        try {
-          const targetBooking = processedList.find(b => b.id === bookingId);
-          if (targetBooking) {
-            const bookingRef = doc(db, "users", user.uid, "bookings", bookingId);
-            await setDoc(bookingRef, targetBooking);
+        if (!auth.currentUser) {
+          localStorage.setItem(`aeris_sandbox_bookings_${user.uid}`, JSON.stringify(processedList));
+        } else {
+          try {
+            const targetBooking = processedList.find(b => b.id === bookingId);
+            if (targetBooking) {
+              const bookingRef = doc(db, "users", user.uid, "bookings", bookingId);
+              await setDoc(bookingRef, targetBooking);
+            }
+          } catch (err) {
+            handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/bookings/${bookingId}`);
           }
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/bookings/${bookingId}`);
         }
       }
 
@@ -1446,8 +1512,24 @@ export default function App() {
               )}
 
               {authError && (
-                <div className="p-3 bg-red-950/20 border-l border-red-500 text-red-400 font-mono text-[11px] leading-relaxed">
-                  {authError}
+                <div className="flex flex-col gap-2.5">
+                  <div className="p-3 bg-red-950/20 border-l border-red-500 text-red-500 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                    {authError}
+                  </div>
+                  
+                  <div className="border border-amber-500/30 bg-amber-500/5 p-3 flex flex-col gap-1.5">
+                    <span className="font-mono text-[9px] text-amber-500 font-bold uppercase tracking-widest block">Local Simulation Tunnel</span>
+                    <p className="text-[11px] text-gray-400 leading-normal font-sans">
+                      If the Email/Password sign-in provider is disabled in your Firebase console, click below to instantly synchronize an offline-sandbox account.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleActivateSandboxBypass}
+                      className="w-full py-1.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-mono text-[10px] uppercase font-bold tracking-widest transition-all cursor-pointer mt-1"
+                    >
+                      Bypass & Run as Sandbox Traveler
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1459,6 +1541,16 @@ export default function App() {
                 {authLoading ? "Initializing Core Link..." : authTab === "login" ? "Authorize Terminal Code" : "Register Credentials"}
               </button>
             </form>
+
+            <div className="text-center pt-1 border-t border-dashed border-border-grid/50">
+              <button
+                type="button"
+                onClick={handleActivateSandboxBypass}
+                className="text-[10px] font-mono text-gray-500 hover:text-accent underline cursor-pointer"
+              >
+                Having trouble? Use instant local Sandbox bypass instead
+              </button>
+            </div>
 
             <div className="text-[9px] font-mono text-gray-600 leading-normal border-t border-border-grid/50 pt-3">
               <span>Security assurance: standard AES-256 encrypted endpoints handle login keys directly. Standard Google workspace and Firebase accounts accepted natively.</span>
